@@ -21,6 +21,20 @@ import json
 import logging
 import pathlib
 from typing import Dict, Optional, Sequence, List
+import importlib.util
+import sys
+# Define the path to the module in the other branch (use absolute path here)
+module_path = "/home/malindal/LLaVA-Med/llava/model/builder.py"
+
+# Load the module
+spec = importlib.util.spec_from_file_location("builder", module_path)
+builder = importlib.util.module_from_spec(spec)
+sys.modules["builder"] = builder
+spec.loader.exec_module(builder)
+load_pretrained_model = builder.load_pretrained_model
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 
 import torch
 
@@ -662,7 +676,9 @@ class LazySupervisedDataset(Dataset):
                  tokenizer: transformers.PreTrainedTokenizer,
                  data_args: DataArguments):
         super(LazySupervisedDataset, self).__init__()
-        list_data_dict = json.load(open(data_path, "r"))
+        # list_data_dict = json.load(open(data_path, "r"))
+        with open(data_path, "r") as f:
+            list_data_dict = [json.loads(line) for line in f]
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -824,13 +840,15 @@ def train(attn_implementation=None):
                 **bnb_model_from_pretrained_args
             )
         else:
-            model = LlavaLlamaForCausalLM.from_pretrained(
-                model_args.model_name_or_path,
-                cache_dir=training_args.cache_dir,
-                attn_implementation=attn_implementation,
-                torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-                **bnb_model_from_pretrained_args
-            )
+            # model = LlavaLlamaForCausalLM.from_pretrained(
+            #     model_args.model_name_or_path,
+            #     cache_dir=training_args.cache_dir,
+            #     attn_implementation=attn_implementation,
+            #     torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+            #     **bnb_model_from_pretrained_args
+            # )
+            tokenizer, model, _, _ = load_pretrained_model("microsoft/llava-med-v1.5-mistral-7b", None, "llava-med-v1.5-mistral-7b")
+
     else:
         model = transformers.LlamaForCausalLM.from_pretrained(
             model_args.model_name_or_path,
@@ -883,13 +901,14 @@ def train(attn_implementation=None):
             padding_side="right"
         )
     else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            model_max_length=training_args.model_max_length,
-            padding_side="right",
-            use_fast=False,
-        )
+        # tokenizer = transformers.AutoTokenizer.from_pretrained(
+        #     model_args.model_name_or_path,
+        #     cache_dir=training_args.cache_dir,
+        #     model_max_length=training_args.model_max_length,
+        #     padding_side="right",
+        #     use_fast=False,
+        # )
+        pass
 
     if model_args.version == "v0":
         if tokenizer.pad_token is None:
